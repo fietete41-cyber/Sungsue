@@ -94,6 +94,16 @@ td,th{padding:6px;border-bottom:1px solid var(--bd);text-align:left}
   <div id="ad-body" class="hide">
     <div class="stat" id="ad-stat"></div>
     <div class="card">
+      <div class="row" style="justify-content:space-between;flex-wrap:wrap">
+        <b>📦 สรุปจำนวนที่สั่ง</b>
+        <select id="ad-sumf" style="width:auto" onchange="renderSummary()">
+          <option value="all">ทุกออเดอร์ (ไม่รวมยกเลิก)</option>
+          <option value="paid">เฉพาะที่ชำระแล้ว</option>
+        </select>
+      </div>
+      <div id="ad-sum"></div>
+    </div>
+    <div class="card">
       <div class="row" style="justify-content:space-between">
         <b>โหมด / สินค้า</b>
         <div class="row"><select id="ad-mode" style="width:auto">
@@ -247,14 +257,46 @@ function adminLogin(){
     adminLoad()});
 }
 function adminLoad(){run('adminGetData',[ADMIN],function(d){adm=d;renderAdmin()})}
+var PAID=['ชำระแล้ว','กำลังผลิต','พร้อมรับ','รับแล้ว'];
+function renderSummary(){
+  var only=$('ad-sumf').value==='paid';
+  var ords=adm.orders.filter(function(o){return o.status!=='ยกเลิก'&&(!only||PAID.indexOf(o.status)>=0)});
+  var cnt={}, grp={}, tot={qty:0,amt:0};
+  ords.forEach(function(o){
+    var items=[];try{items=JSON.parse(o.json)}catch(e){}
+    var g=String(o.group||'').trim()||'(ไม่ระบุรุ่น)';
+    items.forEach(function(i){
+      var k=i.id+'|'+(i.opt||'');
+      cnt[k]=(cnt[k]||0)+i.qty; tot.qty+=i.qty; tot.amt+=i.qty*i.price;
+      grp[g]=grp[g]||{}; grp[g][i.name]=(grp[g][i.name]||0)+i.qty;
+    });
+  });
+  var html='';
+  adm.products.forEach(function(p){
+    var rows=[],sub=0,known={};
+    (p.options.length?p.options:['']).forEach(function(op){known[op]=1;var n=cnt[p.id+'|'+op]||0;sub+=n;rows.push([op,n])});
+    Object.keys(cnt).forEach(function(k){var s=k.split('|');if(s[0]===p.id&&!known[s[1]]){sub+=cnt[k];rows.push([s[1]+' (ตัวเลือกเดิม)',cnt[k]])}});
+    html+='<div style="margin-top:12px"><div class="row" style="justify-content:space-between"><b>'+esc(p.name)+'</b><span class="tag">รวม '+sub+' ชิ้น · ฿'+(sub*p.price).toLocaleString()+'</span></div>';
+    if(p.options.length){
+      html+='<table><tr><th>'+esc(p.optionLabel)+'</th><th style="text-align:right">จำนวน</th></tr>'+rows.map(function(r){
+        return '<tr><td>'+esc(r[0])+'</td><td style="text-align:right;'+(r[1]?'font-weight:700':'color:var(--mut)')+'">'+r[1]+'</td></tr>'}).join('')+'</table>';
+    }
+    html+='</div>';
+  });
+  html+='<div class="stat" style="margin-top:12px"><div><b>'+tot.qty+'</b>ชิ้นรวม</div><div><b>฿'+tot.amt.toLocaleString()+'</b>มูลค่ารวม</div></div>';
+  var gk=Object.keys(grp).sort(function(x,y){return x.localeCompare(y,'th',{numeric:true})});
+  if(gk.length){
+    html+='<b>แยกตามรุ่น</b><div style="overflow-x:auto"><table><tr><th>รุ่น</th>'+adm.products.map(function(p){return '<th style="text-align:right">'+esc(p.name)+'</th>'}).join('')+'</tr>'+
+      gk.map(function(g){return '<tr><td>'+esc(g)+'</td>'+adm.products.map(function(p){return '<td style="text-align:right">'+(grp[g][p.name]||0)+'</td>'}).join('')+'</tr>'}).join('')+'</table></div>';
+  }
+  $('ad-sum').innerHTML=html;
+}
 function renderAdmin(){
   var live=adm.orders.filter(function(o){return o.status!=='ยกเลิก'});
   var sum=live.reduce(function(a,o){return a+Number(o.total)},0);
-  var paid=live.filter(function(o){return o.status!=='รอชำระเงิน'}).reduce(function(a,o){return a+Number(o.total)},0);
-  var by={};live.forEach(function(o){try{JSON.parse(o.json).forEach(function(i){var k=i.name+(i.opt?' '+i.opt:'');by[k]=(by[k]||0)+i.qty})}catch(e){}});
-  $('ad-stat').innerHTML='<div><b>'+live.length+'</b>ออเดอร์</div><div><b>฿'+sum.toLocaleString()+'</b>ยอดจอง</div><div><b>฿'+paid.toLocaleString()+'</b>ชำระแล้ว</div>'+
-    '<div style="flex-basis:100%;text-align:left;font-size:14px"><b style="font-size:15px">สรุปที่ต้องผลิต</b>'+
-    (Object.keys(by).sort().map(function(k){return esc(k)+' × '+by[k]}).join(' &nbsp;|&nbsp; ')||'-')+'</div>';
+  var paid=live.filter(function(o){return PAID.indexOf(o.status)>=0}).reduce(function(a,o){return a+Number(o.total)},0);
+  $('ad-stat').innerHTML='<div><b>'+live.length+'</b>ออเดอร์</div><div><b>฿'+sum.toLocaleString()+'</b>ยอดรวม</div><div><b>฿'+paid.toLocaleString()+'</b>ชำระแล้ว</div>';
+  renderSummary();
   $('ad-mode').value=adm.mode;
   $('ad-prod').innerHTML='<tr><th>สินค้า</th><th>ราคา</th><th>สต็อก</th><th>เปิดขาย</th><th></th></tr>'+adm.products.map(function(p){
     return '<tr><td>'+esc(p.name)+'</td><td><input id="pp'+p.row+'" type="number" value="'+p.price+'" style="width:80px"></td>'+
