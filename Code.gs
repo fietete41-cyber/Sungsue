@@ -58,7 +58,7 @@ function setup() {
   var props = PropertiesService.getScriptProperties();
   var newPass = '';
   if (!props.getProperty('ADMIN_PASS')) {
-    newPass = Math.random().toString(36).slice(2, 10);
+    newPass = String(Math.floor(100000 + Math.random() * 900000));
     props.setProperty('ADMIN_PASS', newPass);
   }
   if (!props.getProperty('SHIP_FEE')) props.setProperty('SHIP_FEE', '50');
@@ -69,7 +69,7 @@ function setup() {
   if (!props.getProperty('MODE')) props.setProperty('MODE', 'survey');
   o.getRange('H2:H').setDataValidation(
     SpreadsheetApp.newDataValidation().requireValueInList(STATUSES, true).build());
-  return 'setup เสร็จแล้ว' + (newPass ? ' — รหัสแอดมิน: ' + newPass : '') + ' (เปลี่ยนได้ที่ Project Settings > Script properties > ADMIN_PASS)';
+  return 'setup เสร็จแล้ว' + (newPass ? ' — PIN แอดมิน (6 หลัก): ' + newPass : '') + ' (เปลี่ยนได้ที่ Project Settings > Script properties > ADMIN_PASS)';
 }
 
 /* ---------- สินค้าเริ่มต้น ----------
@@ -124,6 +124,14 @@ function resetProducts() {
   p.getRange('1:1').setFontWeight('bold').setBackground('#e8eefc');
   p.setFrozenRows(1);
   return 'รีเซ็ตสินค้าแล้ว — อย่าลืมกรอกราคาในคอลัมน์ C';
+}
+
+/* รันเพื่อสุ่ม PIN แอดมิน 6 หลักใหม่ (ดูผลที่ Execution log) หรือแก้ ADMIN_PASS ใน Script properties เป็นเลข 6 หลักเองก็ได้ */
+function resetAdminPin() {
+  var p = String(Math.floor(100000 + Math.random() * 900000));
+  PropertiesService.getScriptProperties().setProperty('ADMIN_PASS', p);
+  Logger.log('PIN แอดมินใหม่: ' + p);
+  return 'PIN แอดมินใหม่: ' + p;
 }
 
 /* ---------- Helpers ---------- */
