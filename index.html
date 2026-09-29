@@ -18,8 +18,14 @@ nav button.on{background:var(--pri);color:#fff;border-color:var(--pri)}
 main{max-width:900px;margin:12px auto;padding:0 12px 90px}
 .card{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:14px;margin-bottom:12px}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px}
-.pimg{height:130px;border-radius:10px;background:var(--pri2);display:flex;align-items:center;justify-content:center;font-size:56px;margin-bottom:8px;overflow:hidden}
-.pimg img{width:100%;height:100%;object-fit:cover}
+.pimg{border-radius:10px;background:var(--pri2);display:flex;align-items:center;justify-content:center;font-size:16px;margin-bottom:8px;overflow:hidden;min-height:90px}
+.pimg img{width:100%;height:auto;display:block}
+.pimg.zoom{cursor:zoom-in;position:relative}
+.pimg.zoom:after{content:'🔍 ดูรูปใหญ่';position:absolute;right:8px;bottom:8px;background:rgba(0,0,0,.6);color:#fff;font-size:12px;padding:2px 8px;border-radius:99px}
+#lb{position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:20;overflow:auto;display:none;padding:12px;text-align:center}
+#lb img{max-width:100%;height:auto;border-radius:8px}
+#lb button{position:fixed;top:10px;right:14px;width:40px;height:40px;border-radius:50%;border:0;font-size:22px;cursor:pointer}
+.sel2{display:flex;gap:8px}.sel2>div{flex:1}
 .price{color:var(--pri);font-weight:700;font-size:18px}
 .mut{color:var(--mut);font-size:14px}
 label{display:block;font-size:14px;color:var(--mut);margin:8px 0 3px}
@@ -48,7 +54,9 @@ td,th{padding:6px;border-bottom:1px solid var(--bd);text-align:left}
 </style>
 </head>
 <body>
-<header><h1 id="title">สั่งจองของที่ระลึก</h1></header>
+<header><h1 id="title">สั่งจองของที่ระลึก</h1>
+  <div style="font-size:14px;opacity:.9;margin-top:2px">Electrical NPT Raikhing · แผนกวิชาช่างไฟฟ้ากำลัง</div></header>
+<div id="lb" onclick="this.style.display='none'"><button>✕</button><img id="lb-img" alt=""></div>
 <nav>
   <button id="t-shop" class="on" onclick="tab('shop')">🛍️ สั่งจอง</button>
   <button id="t-track" onclick="tab('track')">🔎 ตรวจสอบ</button>
@@ -59,6 +67,8 @@ td,th{padding:6px;border-bottom:1px solid var(--bd);text-align:left}
 <!-- ========== ลูกค้า: สั่งจอง ========== -->
 <section id="v-shop">
   <div id="closedBanner" class="banner hide"></div>
+  <div class="card" style="text-align:center"><b>🎯 จุดประสงค์การตัดทำ</b><div>รายได้จากการจำหน่ายทั้งหมด นำไปใช้เพื่อ <b style="color:var(--pri)">"บำรุงห้องเรียนชั้น 4"</b></div>
+    <div class="mut">ปรับปรุงอุปกรณ์การเรียน · ซ่อมแซมโต๊ะเก้าอี้ · ปรับปรุงระบบไฟฟ้า-แสงสว่าง · ดูแลสภาพแวดล้อม</div></div>
   <div id="products" class="grid"><div class="mut">กำลังโหลด...</div></div>
 
   <div class="card" style="margin-top:12px">
@@ -137,7 +147,8 @@ td,th{padding:6px;border-bottom:1px solid var(--bd);text-align:left}
 
 <script>
 var shop = null, cart = {}, ADMIN = '', adm = null, STATUSES = [];
-var ICON = {shirt:'👕', mug:'☕', ring:'💍'};
+function lb(src){$('lb-img').src=src;$('lb').style.display='block'}
+function priceTxt(p){return p.price>0?'฿'+p.price.toLocaleString():'ราคาแจ้งภายหลัง'}
 function $(id){return document.getElementById(id)}
 function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
 function toast(m){var t=document.createElement('div');t.className='toast';t.textContent=m;document.body.appendChild(t);setTimeout(function(){t.remove()},3200)}
@@ -175,29 +186,44 @@ function load(){
 }
 function renderProducts(){
   $('products').innerHTML=shop.products.map(function(p,i){
-    var img=p.image?'<img src="'+esc(p.image)+'">':(ICON[p.id]||'🎁');
-    var opt=p.options.length?'<label>'+esc(p.optionLabel)+'</label><select id="o'+i+'" onchange="upd()">'+
-      p.options.map(function(o){return '<option>'+esc(o)+'</option>'}).join('')+'</select>':'';
+    var img=p.image?'<div class="pimg'+(p.poster?' zoom':'')+'"'+(p.poster?' onclick="lb(\''+esc(p.poster)+'\')"':'')+'><img src="'+esc(p.image)+'" alt="'+esc(p.name)+'"></div>':'<div class="pimg" style="font-size:56px">🎁</div>';
+    var opt='';
+    if(p.options.length){
+      var two=p.options.every(function(o){return o.indexOf(' / ')>0});
+      if(two){
+        var a=[],b=[];p.options.forEach(function(o){var s=o.split(' / ');if(a.indexOf(s[0])<0)a.push(s[0]);if(b.indexOf(s[1])<0)b.push(s[1])});
+        var ln=String(p.optionLabel).split(' / ');
+        var mk=function(id,l,arr){return '<div><label>'+esc(l||'')+'</label><select id="'+id+i+'" onchange="upd()">'+arr.map(function(o){return '<option>'+esc(o)+'</option>'}).join('')+'</select></div>'};
+        opt='<div class="sel2">'+mk('oa',ln[0],a)+mk('ob',ln[1],b)+'</div>';
+      }else opt='<label>'+esc(p.optionLabel)+'</label><select id="o'+i+'" onchange="upd()">'+
+        p.options.map(function(o){return '<option>'+esc(o)+'</option>'}).join('')+'</select>';
+    }
     var low=shop.mode==='order'&&p.stock!=null&&!p.soldOut&&p.stock<=10?'<span class="tag bad">เหลือ '+p.stock+'</span>':'';
-    return '<div class="card"><div class="pimg">'+img+'</div><b>'+esc(p.name)+'</b> '+low+
-      '<div class="mut">'+esc(p.desc)+'</div><div class="price">฿'+p.price.toLocaleString()+'</div>'+opt+
+    return '<div class="card">'+img+'<b>'+esc(p.name)+'</b> '+low+
+      '<div class="mut">'+esc(p.desc)+'</div><div class="price">'+priceTxt(p)+'</div>'+opt+
       (p.soldOut&&shop.mode==='order'?'<div class="tag bad" style="margin-top:10px">สินค้าหมด</div>':
       '<div class="qty" style="margin-top:10px"><button onclick="chg('+i+',-1)">−</button><span id="q'+i+'">0</span><button onclick="chg('+i+',1)">+</button></div>')+
       '</div>';
   }).join('');
+}
+function optVal(i,p){
+  if(!p.options.length)return '';
+  if($('oa'+i))return $('oa'+i).value+' / '+$('ob'+i).value;
+  return $('o'+i).value;
 }
 var qtys={};
 function chg(i,d){qtys[i]=Math.max(0,Math.min(50,(qtys[i]||0)+d));$('q'+i).textContent=qtys[i];upd()}
 function items(){
   var out=[];
   shop.products.forEach(function(p,i){
-    if(qtys[i]>0)out.push({id:p.id,qty:qtys[i],opt:p.options.length?$('o'+i).value:'',_p:p});
+    if(qtys[i]>0)out.push({id:p.id,qty:qtys[i],opt:optVal(i,p),_p:p});
   });
   return out;
 }
 function upd(){
   var t=0,c=0;items().forEach(function(x){t+=x._p.price*x.qty;c+=x.qty});
-  $('cnt').textContent=c;$('total').textContent='฿'+t.toLocaleString();
+  var tbd=items().some(function(x){return !(x._p.price>0)});
+  $('cnt').textContent=c;$('total').textContent=tbd&&t===0?'ราคาแจ้งภายหลัง':'฿'+t.toLocaleString()+(tbd?' + รายการที่ยังไม่แจ้งราคา':'');
 }
 function readSlip(cb){
   var f=$('f-slip').files[0]; if(!f)return cb(null);
@@ -219,7 +245,7 @@ function submit(){
       qtys={};upd();renderProducts();$('f-slip').value='';
       $('products').innerHTML='<div class="card" style="grid-column:1/-1;text-align:center"><div style="font-size:48px">✅</div><h2>'+(r.survey?'บันทึกแบบสำรวจแล้ว':'จองสำเร็จ')+'</h2>'+
         '<div>เลขที่ออเดอร์ <b>'+esc(r.orderNo)+'</b></div><pre>'+esc(r.lines.join('\n'))+'</pre>'+
-        '<div class="price">ยอดรวม ฿'+r.total.toLocaleString()+'</div>'+
+        '<div class="price">'+(r.total>0?'ยอดรวม ฿'+r.total.toLocaleString():'ราคาจะแจ้งภายหลัง')+'</div>'+
         (r.survey?'<p class="mut"><b>ยังไม่ต้องโอนเงิน</b> — เมื่อสรุปยอดสำรวจแล้ว จะแจ้งให้ชำระเงิน โดยเข้าลิงก์นี้ แท็บ "ตรวจสอบ" แล้วใส่เบอร์โทร</p>':'<p class="mut">จดเลขที่ออเดอร์ไว้ ตรวจสอบสถานะได้ที่แท็บ "ตรวจสอบ" ด้วยเบอร์โทร</p>')+
         '<button class="btn" onclick="load()">สั่งเพิ่ม</button></div>';
       window.scrollTo(0,0);
@@ -231,7 +257,7 @@ function track(){
     $('tk-list').innerHTML=l.length?l.map(function(o){
       var cls=o.status==='ยกเลิก'?'bad':(o.status==='ชำระแล้ว'||o.status==='พร้อมรับ'||o.status==='รับแล้ว'?'ok':'');
       return '<div class="card"><div class="row" style="justify-content:space-between"><b>'+esc(o.orderNo)+'</b><span class="tag '+cls+'">'+esc(o.status)+'</span></div>'+
-        '<div class="mut">'+esc(o.time)+'</div><pre>'+esc(o.items)+'</pre><div class="price">฿'+Number(o.total).toLocaleString()+'</div>'+
+        '<div class="mut">'+esc(o.time)+'</div><pre>'+esc(o.items)+'</pre><div class="price">'+(Number(o.total)>0?'฿'+Number(o.total).toLocaleString():'ราคาแจ้งภายหลัง')+'</div>'+
         (o.status==='สำรวจ'?'<div class="mut">อยู่ระหว่างสำรวจ ยังไม่ต้องชำระเงิน</div><button class="btn sec" onclick="cancelMine(\''+o.orderNo+'\')">ยกเลิกรายการนี้</button>':'')+
         (o.status==='รอชำระเงิน'&&!o.hasSlip?'<pre class="mut"><b>โอนเงินที่:</b>\n'+esc(res.payInfo)+'</pre>':'')+
         (o.hasSlip?'<div class="mut">✔ แนบสลิปแล้ว</div>':

@@ -37,10 +37,8 @@ function setup() {
 
   var p = ss.getSheetByName(SHEET_PRODUCTS) || ss.insertSheet(SHEET_PRODUCTS);
   if (p.getLastRow() === 0) {
-    p.appendRow(['ID', 'ชื่อสินค้า', 'ราคา', 'ตัวเลือก (คั่นด้วย ,)', 'ชื่อตัวเลือก', 'สต็อก (ว่าง=ไม่จำกัด)', 'เปิดขาย', 'รูป (URL)', 'รายละเอียด']);
-    p.appendRow(['shirt', 'เสื้อที่ระลึก', 250, 'S,M,L,XL,2XL', 'ไซซ์', '', true, '', 'ผ้าคอตตอน 100%']);
-    p.appendRow(['mug', 'แก้วเก็บความเย็น', 120, '', '', '', true, '', 'แก้วเก็บความเย็น สกรีนโลโก้']);
-    p.appendRow(['ring', 'แหวนที่ระลึก', 180, '', '', '', true, '', 'ติดต่อวัดขนาดนิ้วที่แผนก']);
+    p.appendRow(['ID', 'ชื่อสินค้า', 'ราคา', 'ตัวเลือก (คั่นด้วย ,)', 'ชื่อตัวเลือก', 'สต็อก (ว่าง=ไม่จำกัด)', 'เปิดขาย', 'รูป (URL)', 'รายละเอียด', 'รูปใหญ่ (URL)']);
+    productRows_().forEach(function (r) { p.appendRow(r); });
     p.getRange('1:1').setFontWeight('bold').setBackground('#e8eefc');
     p.setFrozenRows(1);
   }
@@ -69,6 +67,36 @@ function setup() {
   return 'setup เสร็จแล้ว' + (newPass ? ' — รหัสแอดมิน: ' + newPass : '') + ' (เปลี่ยนได้ที่ Project Settings > Script properties > ADMIN_PASS)';
 }
 
+/* ---------- สินค้าเริ่มต้น ----------
+ * ราคา 0 = "ราคาแจ้งภายหลัง" (แก้ราคาในชีต Products หรือหน้าแอดมิน)
+ * ตัวเลือกแบบ "สี / ไซซ์" ใช้ " / " คั่น หน้าเว็บจะแยกเป็น 2 ช่องให้อัตโนมัติ */
+function productRows_() {
+  var colors = ['ดำ', 'ขาว'], sizes = ['S', 'M', 'L', 'XL', '2XL', '3XL'], combo = [];
+  colors.forEach(function (c) { sizes.forEach(function (s) { combo.push(c + ' / ' + s); }); });
+  var cs = combo.join(',');
+  return [
+    ['polo', 'เสื้อโปโล (ปักโลโก้)', 0, cs, 'สี / ไซซ์', '', true, 'img/polo.jpg',
+      'เสื้อโปโล ปักโลโก้ มีกระเป๋า ปกโปโลปักเส้นคารู หลังปักโลโก้ ปลายแขนปัก RAIKHING', 'img/poster-shirt.jpg'],
+    ['tee', 'เสื้อยืด (สกรีน)', 0, cs, 'สี / ไซซ์', '', true, 'img/tee.jpg',
+      'เสื้อยืดสกรีน มีกระเป๋า คอกลมใส่สบาย ลายกราฟิกด้านข้าง', 'img/poster-shirt.jpg'],
+    ['mug', 'แก้วเก็บความเย็น', 0, 'ขาว,ดำ', 'สี', '', true, 'img/mug.jpg',
+      'สแตนเลส 304 เก็บความเย็นได้สูงสุด 24 ชม. เก็บความร้อนได้สูงสุด 12 ชม. ฝาปิดกันหก BPA Free พร้อมกล่องของขวัญ', 'img/poster-mug.jpg'],
+    ['ring', 'แหวนช่างไฟฟ้ากำลัง 35 ปี', 0, '', '', '', true, 'img/ring.jpg',
+      'เงินแท้ / สแตนเลส 316L (ตามงบประมาณ) ลงยาสีฟ้า หน้าแหวน 16-18 มม. — ติดต่อวัดขนาดนิ้วที่แผนก', 'img/poster-ring.jpg']
+  ];
+}
+
+/* รันเมื่อต้องการรีเซ็ตเฉพาะชีต Products เป็นค่าเริ่มต้นใหม่ (ไม่แตะออเดอร์) */
+function resetProducts() {
+  var p = sheet_(SHEET_PRODUCTS);
+  p.clear();
+  p.appendRow(['ID', 'ชื่อสินค้า', 'ราคา', 'ตัวเลือก (คั่นด้วย ,)', 'ชื่อตัวเลือก', 'สต็อก (ว่าง=ไม่จำกัด)', 'เปิดขาย', 'รูป (URL)', 'รายละเอียด', 'รูปใหญ่ (URL)']);
+  productRows_().forEach(function (r) { p.appendRow(r); });
+  p.getRange('1:1').setFontWeight('bold').setBackground('#e8eefc');
+  p.setFrozenRows(1);
+  return 'รีเซ็ตสินค้าแล้ว — อย่าลืมกรอกราคาในคอลัมน์ C';
+}
+
 /* ---------- Helpers ---------- */
 function prop_(k, d) { return PropertiesService.getScriptProperties().getProperty(k) || d; }
 function sheet_(n) {
@@ -92,7 +120,7 @@ function readProducts_() {
       optionLabel: String(r[4] || 'ตัวเลือก'),
       stock: r[5] === '' || r[5] === null ? null : Number(r[5]),
       active: r[6] === true || String(r[6]).toUpperCase() === 'TRUE',
-      image: String(r[7] || ''), desc: String(r[8] || '')
+      image: String(r[7] || ''), desc: String(r[8] || ''), poster: String(r[9] || '')
     });
   }
   return out;
@@ -106,7 +134,7 @@ function getShop() {
     mode: prop_('MODE', 'survey'),
     products: readProducts_().filter(function (p) { return p.active; }).map(function (p) {
       return { id: p.id, name: p.name, price: p.price, options: p.options, optionLabel: p.optionLabel,
-               soldOut: p.stock !== null && p.stock <= 0, stock: p.stock, image: p.image, desc: p.desc };
+               soldOut: p.stock !== null && p.stock <= 0, stock: p.stock, image: p.image, desc: p.desc, poster: p.poster };
     })
   };
 }
