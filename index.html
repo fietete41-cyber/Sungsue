@@ -1,7 +1,6 @@
 <!DOCTYPE html>
 <html lang="th">
 <head>
-<base target="_top">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>สั่งจองของที่ระลึก</title>
@@ -132,11 +131,16 @@ var ICON = {shirt:'👕', mug:'☕', ring:'💍'};
 function $(id){return document.getElementById(id)}
 function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
 function toast(m){var t=document.createElement('div');t.className='toast';t.textContent=m;document.body.appendChild(t);setTimeout(function(){t.remove()},3200)}
+// วาง URL ของ Apps Script Web App (ลงท้าย /exec) ตรงนี้
+var API_URL='https://script.google.com/macros/s/AKfycbwB6DLPH26_pBM6vxqK9ahh9zWpg94jKtTSP9mxHV7CZ8TMmtfP_165wfWQr6cRZWok/exec';
 function run(fn,args,ok,btn){
   if(btn)btn.disabled=true;
-  var r=google.script.run.withSuccessHandler(function(v){if(btn)btn.disabled=false;ok(v)})
-    .withFailureHandler(function(e){if(btn)btn.disabled=false;toast(String(e.message||e).replace(/^Error:\s*/,''))});
-  r[fn].apply(r,args);
+  function done(){if(btn)btn.disabled=false}
+  if(API_URL.indexOf('PASTE')===0){done();return toast('ยังไม่ได้ตั้งค่า API_URL ใน Index.html')}
+  fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({fn:fn,args:args})})
+    .then(function(r){return r.json()})
+    .then(function(r){done();if(r.ok)ok(r.data);else toast(String(r.error||'เกิดข้อผิดพลาด').replace(/^Error:\s*/,''))})
+    .catch(function(e){done();toast('เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ กรุณาลองใหม่')});
 }
 function tab(t){
   ['shop','track','admin'].forEach(function(x){$('v-'+x).classList.toggle('hide',x!==t);$('t-'+x).classList.toggle('on',x===t)});
