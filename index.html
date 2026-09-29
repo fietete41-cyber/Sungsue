@@ -95,6 +95,9 @@ a{color:#8db4ff}
   <h1 id="title">สั่งจองของที่ระลึก</h1>
   <div class="sub">ELECTRICAL NPT RAIKHING · แผนกวิชาช่างไฟฟ้ากำลัง</div>
 </div></div>
+<div id="cf" class="hide" style="position:fixed;inset:0;z-index:70;background:rgba(0,0,0,.65);display:flex;align-items:center;justify-content:center;padding:20px">
+  <div class="card" style="max-width:380px;width:100%;margin:0"><div id="cf-msg"></div>
+    <div class="row" style="margin-top:14px"><button class="btn sec" style="flex:1" onclick="cfNo()">ยกเลิก</button><button class="btn" style="flex:1" onclick="cfYes()">ยืนยัน</button></div></div></div>
 <div id="lb" onclick="this.style.display='none'"><button>✕</button><img id="lb-img" alt=""></div>
 <main>
 
@@ -124,9 +127,10 @@ a{color:#8db4ff}
   <div id="ad-body" class="hide">
     <div class="stat" id="ad-stat"></div>
     <div class="card">
-      <div class="row" style="justify-content:space-between;flex-wrap:wrap">
-        <b>📦 สรุปจำนวนที่สั่ง</b>
-        <select id="ad-sumf" style="width:auto" onchange="renderSummary()">
+      <b>📦 สรุปจำนวนที่สั่ง</b>
+      <div class="row" style="margin-top:8px">
+        <select id="ad-sump" onchange="renderSummary()"></select>
+        <select id="ad-sumf" onchange="renderSummary()">
           <option value="all">ทุกออเดอร์ (ไม่รวมยกเลิก)</option>
           <option value="paid">เฉพาะที่ชำระแล้ว</option>
         </select>
@@ -134,15 +138,17 @@ a{color:#8db4ff}
       <div id="ad-sum"></div>
     </div>
     <div class="card">
-      <div class="row" style="justify-content:space-between">
-        <b>โหมด / สินค้า</b>
-        <div class="row"><select id="ad-mode" style="width:auto">
-          <option value="survey">📋 สำรวจ</option><option value="pay">💳 เปิดชำระเงิน</option>
-          <option value="order">🛒 จองพร้อมจ่าย</option><option value="closed">⏸ ปิด</option></select>
-          <button class="btn sec" onclick="setMode()">เปลี่ยนโหมด</button></div>
-      </div>
-      <div style="overflow-x:auto"><table id="ad-prod"></table></div>
-      <div class="mut">เพิ่ม/แก้ชื่อสินค้าหรือตัวเลือก แก้ได้ตรงๆ ในชีต Products</div>
+      <b>โหมดระบบ</b> <span class="mut">ปัจจุบัน: <b id="ad-modeLbl" style="color:var(--gold)"></b></span>
+      <div class="row" style="margin-top:8px"><select id="ad-mode">
+        <option value="survey">สำรวจ</option><option value="pay">เปิดชำระเงิน</option>
+        <option value="order">จองพร้อมจ่าย</option><option value="closed">ปิดรับ</option></select>
+        <button class="btn" onclick="setMode()">เปลี่ยนโหมด</button></div>
+    </div>
+    <div class="card">
+      <b>สินค้า / ราคา / สต็อก</b>
+      <select id="ad-pp" onchange="renderProdEdit()" style="margin-top:8px"></select>
+      <div id="ad-prod"></div>
+      <div class="mut" style="margin-top:8px">เพิ่ม/แก้ชื่อสินค้าหรือตัวเลือก แก้ได้ตรงๆ ในชีต Products</div>
     </div>
     <div class="card">
       <div class="row" style="justify-content:space-between;flex-wrap:wrap">
@@ -229,7 +235,7 @@ function load(){
     var m=s.mode, open=(m==='survey'||m==='order');
     $('payCard').classList.toggle('hide',m!=='order');
     $('closedBanner').classList.toggle('hide',open);
-    $('closedBanner').textContent=m==='pay'?'ปิดรับสำรวจแล้ว — ผู้ที่ลงชื่อไว้ ตรวจสอบยอดและชำระเงินได้ที่แท็บ "ตรวจสอบ"':'ปิดรับแล้ว';
+    $('closedBanner').innerHTML=m==='pay'?'<b>เปิดชำระเงินแล้ว</b><br>ผู้ที่ลงชื่อไว้ เลือกวิธีรับสินค้า (รับเอง / จัดส่ง) และชำระเงินได้ที่หน้าตรวจสอบ<br><button class="btn" style="margin-top:8px" onclick="tab(\'track\')">ไปหน้าตรวจสอบและชำระเงิน</button>':'ปิดรับแล้ว';
     $('products').classList.toggle('hide',!open);
     $('btnSubmit').disabled=!open;
     $('btnSubmit').textContent=m==='survey'?'ส่งแบบสำรวจ':'ยืนยันการจอง';
@@ -362,7 +368,11 @@ function saveDlv(k,no){
   run('setDelivery',[no,$('tk-phone').value,{method:$('dm'+k).value,addr:$('da'+k)?$('da'+k).value:'',phone:$('dp'+k)?$('dp'+k).value:''}],
     function(r){toast(r.method==='จัดส่ง'?'บันทึกแล้ว — โอนรวมค่าจัดส่ง ฿'+r.fee:'บันทึกแล้ว — รับด้วยตนเอง');track()});
 }
-function cancelMine(no){if(confirm('ยืนยันยกเลิกรายการนี้?'))run('cancelMyOrder',[no,$('tk-phone').value],function(){toast('ยกเลิกแล้ว');track()})}
+var cfCb=null;
+function askConfirm(msg,cb){$('cf-msg').textContent=msg;cfCb=cb;$('cf').classList.remove('hide')}
+function cfNo(){$('cf').classList.add('hide');cfCb=null}
+function cfYes(){var f=cfCb;cfNo();if(f)f()}
+function cancelMine(no){askConfirm('ยืนยันยกเลิกรายการนี้?',function(){run('cancelMyOrder',[no,$('tk-phone').value],function(){toast('ยกเลิกแล้ว');track()})})}
 function sendSlip(inp,no){
   var f=inp.files[0]; if(!f)return; var fr=new FileReader(), img=new Image();
   fr.onload=function(){img.onload=function(){
@@ -381,32 +391,22 @@ function adminLogin(){
 }
 function adminLoad(){run('adminGetData',[ADMIN],function(d){adm=d;renderAdmin()})}
 var PAID=['ชำระแล้ว','กำลังผลิต','พร้อมรับ','รับแล้ว'];
+function sortNum(a,b){return a.localeCompare(b,'th',{numeric:true})}
 function renderSummary(){
-  var only=$('ad-sumf').value==='paid';
+  var only=$('ad-sumf').value==='paid', view=$('ad-sump').value||'all';
   var ords=adm.orders.filter(function(o){return o.status!=='ยกเลิก'&&(!only||PAID.indexOf(o.status)>=0)});
-  var cnt={}, grp={}, tot={qty:0,amt:0};
+  var cnt={}, grp={}, amt={}, qtyBy={}, tot={qty:0,amt:0};
   ords.forEach(function(o){
     var items=[];try{items=JSON.parse(o.json)}catch(e){}
     var g=String(o.group||'').trim()||'(ไม่ระบุรุ่น)';
     items.forEach(function(i){
       var k=i.id+'|'+(i.opt||'');
       cnt[k]=(cnt[k]||0)+i.qty; tot.qty+=i.qty; tot.amt+=i.qty*i.price;
+      qtyBy[i.id]=(qtyBy[i.id]||0)+i.qty; amt[i.id]=(amt[i.id]||0)+i.qty*i.price;
       grp[g]=grp[g]||{}; grp[g][i.name]=(grp[g][i.name]||0)+i.qty;
     });
   });
-  var html='';
-  adm.products.forEach(function(p){
-    var rows=[],sub=0,known={};
-    (p.options.length?p.options:['']).forEach(function(op){known[op]=1;var n=cnt[p.id+'|'+op]||0;sub+=n;rows.push([op,n])});
-    Object.keys(cnt).forEach(function(k){var s=k.split('|');if(s[0]===p.id&&!known[s[1]]){sub+=cnt[k];rows.push([s[1]+' (ตัวเลือกเดิม)',cnt[k]])}});
-    html+='<div style="margin-top:12px"><div class="row" style="justify-content:space-between"><b>'+esc(p.name)+'</b><span class="tag">รวม '+sub+' ชิ้น · ฿'+(sub*p.price).toLocaleString()+'</span></div>';
-    if(p.options.length){
-      html+='<table><tr><th>'+esc(p.optionLabel)+'</th><th style="text-align:right">จำนวน</th></tr>'+rows.map(function(r){
-        return '<tr><td>'+esc(r[0])+'</td><td style="text-align:right;'+(r[1]?'font-weight:700':'color:var(--mut)')+'">'+r[1]+'</td></tr>'}).join('')+'</table>';
-    }
-    html+='</div>';
-  });
-  html+='<div class="stat" style="margin-top:12px"><div><b>'+tot.qty+'</b>ชิ้นรวม</div><div><b>฿'+tot.amt.toLocaleString()+'</b>มูลค่ารวม</div></div>';
+  // แหวน
   var rNeed=0,rSizes={},rDone=0;
   ords.forEach(function(o){
     ringItems(o).forEach(function(i){
@@ -415,15 +415,36 @@ function renderSummary(){
     });
     String(o.ringSize||'').split(/[,\s]+/).filter(String).forEach(function(s){rSizes[s]=(rSizes[s]||0)+1;rDone++});
   });
-  if(rNeed>0||rDone>0){
-    var rk=Object.keys(rSizes).sort(function(x,y){return x.localeCompare(y,'th',{numeric:true})});
-    html+='<div style="margin-top:12px"><b>ขนาดแหวน</b> <span class="tag">'+rNeed+' วง · วัดแล้ว '+Math.min(rDone,rNeed)+' · ยังไม่วัด '+Math.max(rNeed-rDone,0)+'</span>'+
-      (rk.length?'<table><tr><th>ขนาด</th><th style="text-align:right">จำนวน</th></tr>'+rk.map(function(k){return '<tr><td>'+esc(k)+'</td><td style="text-align:right;font-weight:700">'+rSizes[k]+'</td></tr>'}).join('')+'</table>':'<div class="mut">ยังไม่มีการบันทึกขนาด</div>')+'</div>';
-  }
-  var gk=Object.keys(grp).sort(function(x,y){return x.localeCompare(y,'th',{numeric:true})});
-  if(gk.length){
-    html+='<b>แยกตามรุ่น</b><div style="overflow-x:auto"><table><tr><th>รุ่น</th>'+adm.products.map(function(p){return '<th style="text-align:right">'+esc(p.name)+'</th>'}).join('')+'</tr>'+
-      gk.map(function(g){return '<tr><td>'+esc(g)+'</td>'+adm.products.map(function(p){return '<td style="text-align:right">'+(grp[g][p.name]||0)+'</td>'}).join('')+'</tr>'}).join('')+'</table></div>';
+  var ringTag='<span class="tag">'+rNeed+' วง · วัดแล้ว '+Math.min(rDone,rNeed)+' · ยังไม่วัด '+Math.max(rNeed-rDone,0)+'</span>';
+  var html='';
+  if(view==='all'){
+    html+='<div style="overflow-x:auto"><table><tr><th>สินค้า</th><th style="text-align:right">ชิ้น</th><th style="text-align:right">มูลค่า</th></tr>'+
+      adm.products.map(function(p){return '<tr><td>'+esc(p.name)+'</td><td style="text-align:right;font-weight:700">'+(qtyBy[p.id]||0)+'</td><td style="text-align:right">฿'+(amt[p.id]||0).toLocaleString()+'</td></tr>'}).join('')+
+      '<tr><td><b>รวม</b></td><td style="text-align:right"><b>'+tot.qty+'</b></td><td style="text-align:right"><b>฿'+tot.amt.toLocaleString()+'</b></td></tr></table></div>';
+    if(rNeed>0)html+='<div style="margin-top:8px"><b>แหวน</b> '+ringTag+'</div>';
+    html+='<div class="mut" style="margin-top:8px">เลือกสินค้าในช่องด้านบนเพื่อดูรายละเอียดสี / ไซซ์</div>';
+  }else if(view==='group'){
+    var gk=Object.keys(grp).sort(sortNum);
+    html+=gk.length?'<div style="overflow-x:auto"><table><tr><th>รุ่น</th>'+adm.products.map(function(p){return '<th style="text-align:right">'+esc(p.name)+'</th>'}).join('')+'</tr>'+
+      gk.map(function(g){return '<tr><td>'+esc(g)+'</td>'+adm.products.map(function(p){return '<td style="text-align:right">'+(grp[g][p.name]||0)+'</td>'}).join('')+'</tr>'}).join('')+'</table></div>':'<div class="mut">ยังไม่มีข้อมูล</div>';
+  }else{
+    var p=adm.products.filter(function(x){return x.id===view})[0];
+    if(p){
+      html+='<div class="row" style="justify-content:space-between;margin:10px 0 4px"><b>'+esc(p.name)+'</b><span class="tag">รวม '+(qtyBy[p.id]||0)+' ชิ้น · ฿'+(amt[p.id]||0).toLocaleString()+'</span></div>';
+      var two=p.options.length&&p.options.every(function(o){return o.indexOf(' / ')>0});
+      if(two){
+        var cols=[],rows=[];p.options.forEach(function(o){var s=o.split(' / ');if(cols.indexOf(s[0])<0)cols.push(s[0]);if(rows.indexOf(s[1])<0)rows.push(s[1])});
+        html+='<div style="overflow-x:auto"><table><tr><th>'+esc(String(p.optionLabel).split(' / ')[1]||'ไซซ์')+'</th>'+cols.map(function(c){return '<th style="text-align:right">'+esc(c)+'</th>'}).join('')+'<th style="text-align:right">รวม</th></tr>'+
+          rows.map(function(rw){var sum=0;var tds=cols.map(function(c){var n=cnt[p.id+'|'+c+' / '+rw]||0;sum+=n;return '<td style="text-align:right;'+(n?'font-weight:700':'color:var(--mut)')+'">'+n+'</td>'}).join('');
+            return '<tr><td>'+esc(rw)+'</td>'+tds+'<td style="text-align:right;font-weight:700">'+sum+'</td></tr>'}).join('')+'</table></div>';
+      }else if(p.id==='ring'){
+        html+=ringTag;
+        var rk=Object.keys(rSizes).sort(sortNum);
+        html+=rk.length?'<table><tr><th>ขนาด</th><th style="text-align:right">จำนวน</th></tr>'+rk.map(function(k){return '<tr><td>'+esc(k)+'</td><td style="text-align:right;font-weight:700">'+rSizes[k]+'</td></tr>'}).join('')+'</table>':'<div class="mut">ยังไม่มีการเลือกหรือบันทึกขนาด</div>';
+      }else if(p.options.length){
+        html+='<table><tr><th>'+esc(p.optionLabel)+'</th><th style="text-align:right">จำนวน</th></tr>'+p.options.map(function(o){var n=cnt[p.id+'|'+o]||0;return '<tr><td>'+esc(o)+'</td><td style="text-align:right;'+(n?'font-weight:700':'color:var(--mut)')+'">'+n+'</td></tr>'}).join('')+'</table>';
+      }else html+='<div class="mut">สินค้านี้ไม่มีตัวเลือก</div>';
+    }
   }
   $('ad-sum').innerHTML=html;
 }
@@ -433,14 +454,16 @@ function renderAdmin(){
   var paid=live.filter(function(o){return PAID.indexOf(o.status)>=0}).reduce(function(a,o){return a+Number(o.total)},0);
   $('ad-stat').innerHTML='<div><b>'+live.length+'</b>ออเดอร์</div><div><b>฿'+sum.toLocaleString()+'</b>ยอดรวม</div><div><b>฿'+paid.toLocaleString()+'</b>ชำระแล้ว</div>'+
     '<div><b>'+live.filter(function(o){return o.delivery==='จัดส่ง'}).length+'</b>ออเดอร์จัดส่ง</div><div><b>฿'+live.reduce(function(a,o){return a+(Number(o.fee)||0)},0).toLocaleString()+'</b>ค่าจัดส่งรวม</div>';
+  var sp=$('ad-sump'),cur=sp.value||'all';
+  sp.innerHTML='<option value="all">ภาพรวมทุกสินค้า</option>'+adm.products.map(function(p){return '<option value="'+esc(p.id)+'">'+esc(p.name)+'</option>'}).join('')+'<option value="group">แยกตามรุ่น</option>';
+  sp.value=cur;if(sp.value!==cur)sp.value='all';
   renderSummary();
   $('ad-mode').value=adm.mode;
-  $('ad-prod').innerHTML='<tr><th>สินค้า</th><th>ราคา</th><th>สต็อก</th><th>เปิดขาย</th><th></th></tr>'+adm.products.map(function(p){
-    return '<tr><td>'+esc(p.name)+'</td><td><input id="pp'+p.row+'" type="number" value="'+p.price+'" style="width:80px"></td>'+
-      '<td><input id="ps'+p.row+'" type="number" value="'+(p.stock==null?'':p.stock)+'" placeholder="∞" style="width:80px"></td>'+
-      '<td><input id="pa'+p.row+'" type="checkbox" '+(p.active?'checked':'')+' style="width:auto"></td>'+
-      '<td><button class="btn sec" onclick="saveProd('+p.row+')">บันทึก</button></td></tr>';
-  }).join('');
+  $('ad-modeLbl').textContent=MODE_LBL[adm.mode]||adm.mode;
+  var pp=$('ad-pp'),pcur=pp.value;
+  pp.innerHTML=adm.products.map(function(p){return '<option value="'+p.row+'">'+esc(p.name)+'</option>'}).join('');
+  if(pcur)pp.value=pcur;
+  renderProdEdit();
   renderOrders();
 }
 function renderOrders(){
@@ -457,6 +480,15 @@ function renderOrders(){
       '<select style="width:auto" onchange="setStatus(\''+o.orderNo+'\',this.value)">'+STATUSES.map(function(s){return '<option'+(s===o.status?' selected':'')+'>'+s+'</option>'}).join('')+'</select></div></div>';
   }).join('')||'<div class="card mut">ไม่มีออเดอร์</div>';
 }
+var MODE_LBL={survey:'สำรวจ',pay:'เปิดชำระเงิน',order:'จองพร้อมจ่าย',closed:'ปิดรับ'};
+function renderProdEdit(){
+  var row=$('ad-pp').value,p=adm.products.filter(function(x){return String(x.row)===String(row)})[0];
+  if(!p){$('ad-prod').innerHTML='';return}
+  $('ad-prod').innerHTML='<div class="sel2"><div><label>ราคา (บาท)</label><input id="pp'+p.row+'" type="number" value="'+p.price+'"></div>'+
+    '<div><label>สต็อก (ว่าง = ไม่จำกัด)</label><input id="ps'+p.row+'" type="number" value="'+(p.stock==null?'':p.stock)+'" placeholder="∞"></div></div>'+
+    '<label style="display:flex;gap:8px;align-items:center;margin-top:12px"><input id="pa'+p.row+'" type="checkbox" '+(p.active?'checked':'')+' style="width:22px;min-height:22px;margin:0"> เปิดขาย</label>'+
+    '<button class="btn full" onclick="saveProd('+p.row+')">บันทึก</button>';
+}
 function ringItems(o){try{return JSON.parse(o.json).filter(function(i){return i.id==='ring'})}catch(e){return []}}
 function isDept(opt){return !opt||String(opt).indexOf('แผนก')>=0}
 function ringDeptQty(o){return ringItems(o).filter(function(i){return isDept(i.opt)}).reduce(function(a,i){return a+i.qty},0)}
@@ -467,8 +499,10 @@ function saveProd(row){
 }
 function setMode(){
   var m=$('ad-mode').value;
-  if(m==='pay'&&!confirm('ปิดรับสำรวจ และเปลี่ยนทุกรายการ "สำรวจ" เป็น "รอชำระเงิน" ใช่หรือไม่?'))return;
-  run('adminSetMode',[ADMIN,m],function(r){toast(r.converted?'เปิดชำระเงินแล้ว '+r.converted+' ออเดอร์':'เปลี่ยนโหมดแล้ว');adminLoad();load()});
+  if(m===adm.mode)return toast('อยู่ในโหมดนี้อยู่แล้ว');
+  var go=function(){run('adminSetMode',[ADMIN,m],function(r){
+    toast(r.converted?'เปิดชำระเงินแล้ว ('+r.converted+' ออเดอร์เปลี่ยนเป็นรอชำระเงิน)':'เปลี่ยนเป็นโหมด "'+MODE_LBL[m]+'" แล้ว');adminLoad();load()})};
+  if(m==='pay')askConfirm('ปิดรับสำรวจ และเปลี่ยนทุกรายการ "สำรวจ" เป็น "รอชำระเงิน" ใช่หรือไม่?',go);else go();
 }
 function exportCsv(){
   var rows=[['เลขที่','เวลา','ชื่อ','เบอร์','รุ่น','รายการ','ยอด','สถานะ','หมายเหตุ','ขนาดแหวน','การรับสินค้า','ค่าจัดส่ง','ที่อยู่จัดส่ง','เบอร์จัดส่ง']].concat(adm.orders.map(function(o){
