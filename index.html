@@ -67,7 +67,7 @@ td,th{padding:6px;border-bottom:1px solid var(--bd);text-align:left}
 <!-- ========== ลูกค้า: สั่งจอง ========== -->
 <section id="v-shop">
   <div id="closedBanner" class="banner hide"></div>
-  <div class="card" style="text-align:center"><b>🎯 จุดประสงค์การตัดทำ</b><div>รายได้จากการจำหน่ายทั้งหมด นำไปใช้เพื่อ <b style="color:var(--pri)">"บำรุงห้องเรียนชั้น 4"</b></div>
+  <div class="card" style="text-align:center"><b>🎯 จุดประสงค์การตัดทำ</b><div>รายได้จากการจำหน่ายทั้งหมด นำไปใช้เพื่อ <b style="color:var(--pri)">"บำรุงห้องเรียนแผนกวิชาช่างไฟฟ้ากำลัง"</b></div>
     <div class="mut">ปรับปรุงอุปกรณ์การเรียน · ซ่อมแซมโต๊ะเก้าอี้ · ปรับปรุงระบบไฟฟ้า-แสงสว่าง · ดูแลสภาพแวดล้อม</div></div>
   <div id="products" class="grid"><div class="mut">กำลังโหลด...</div></div>
 
@@ -148,6 +148,9 @@ td,th{padding:6px;border-bottom:1px solid var(--bd);text-align:left}
 <script>
 var shop = null, cart = {}, ADMIN = '', adm = null, STATUSES = [];
 function lb(src){$('lb-img').src=src;$('lb').style.display='block'}
+// รูปสำรองตาม id สินค้า (กรณีชีตไม่ได้ใส่รูป)
+var DEF={polo:['polo','shirt'],shirt:['polo','shirt'],tee:['tee','shirt'],mug:['mug','mug'],ring:['ring','ring']};
+function imgOf(p){var d=DEF[p.id];return {img:p.image||(d?'img/'+d[0]+'.jpg':''),big:p.poster||(d?'img/poster-'+d[1]+'.jpg':'')}}
 function priceTxt(p){return p.price>0?'฿'+p.price.toLocaleString():'ราคาแจ้งภายหลัง'}
 function $(id){return document.getElementById(id)}
 function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
@@ -186,7 +189,7 @@ function load(){
 }
 function renderProducts(){
   $('products').innerHTML=shop.products.map(function(p,i){
-    var img=p.image?'<div class="pimg'+(p.poster?' zoom':'')+'"'+(p.poster?' onclick="lb(\''+esc(p.poster)+'\')"':'')+'><img src="'+esc(p.image)+'" alt="'+esc(p.name)+'"></div>':'<div class="pimg" style="font-size:56px">🎁</div>';
+    var im=imgOf(p);var img=im.img?'<div class="pimg'+(im.big?' zoom':'')+'"'+(im.big?' onclick="lb(\''+esc(im.big)+'\')"':'')+'><img src="'+esc(im.img)+'" alt="'+esc(p.name)+'"></div>':'<div class="pimg" style="font-size:56px">🎁</div>';
     var opt='';
     if(p.options.length){
       var two=p.options.every(function(o){return o.indexOf(' / ')>0});
