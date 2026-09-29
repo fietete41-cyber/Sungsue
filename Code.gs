@@ -11,7 +11,7 @@ var STATUSES = ['สำรวจ', 'รอชำระเงิน', 'ชำร�
 
 /* ---------- Web App ---------- */
 var API = ['getShop', 'submitOrder', 'attachSlip', 'trackOrders', 'cancelMyOrder',
-  'adminLogin', 'adminGetData', 'adminSetStatus', 'adminSaveProduct', 'adminSetMode'];
+  'adminLogin', 'adminGetData', 'adminSetStatus', 'adminSaveProduct', 'adminSetMode', 'adminSetRingSize'];
 
 function doGet() {
   return ContentService.createTextOutput('Souvenir API OK');
@@ -45,12 +45,15 @@ function setup() {
 
   var o = ss.getSheetByName(SHEET_ORDERS) || ss.insertSheet(SHEET_ORDERS);
   if (o.getLastRow() === 0) {
-    o.appendRow(['เลขที่ออเดอร์', 'เวลา', 'ชื่อ-สกุล', 'เบอร์โทร', 'รุ่น', 'รายการ', 'ยอดรวม', 'สถานะ', 'สลิป', 'หมายเหตุ', 'รายการ(JSON)', 'ตัดสต็อก']);
+    o.appendRow(['เลขที่ออเดอร์', 'เวลา', 'ชื่อ-สกุล', 'เบอร์โทร', 'รุ่น', 'รายการ', 'ยอดรวม', 'สถานะ', 'สลิป', 'หมายเหตุ', 'รายการ(JSON)', 'ตัดสต็อก', 'ขนาดแหวน']);
     o.getRange('1:1').setFontWeight('bold').setBackground('#e8eefc');
     o.setFrozenRows(1);
     o.getRange('H2:H').setDataValidation(
       SpreadsheetApp.newDataValidation().requireValueInList(STATUSES, true).build());
   }
+
+  if (!o.getRange(1, 13).getValue()) o.getRange(1, 13).setValue('ขนาดแหวน').setFontWeight('bold').setBackground('#e8eefc');
+  o.getRange('M2:M').setNumberFormat('@');
 
   var props = PropertiesService.getScriptProperties();
   var newPass = '';
@@ -188,7 +191,7 @@ function submitOrder(data) {
     if (useStock && data.slip && data.slip.base64) slipUrl = saveSlip_(orderNo, data.slip);
 
     os.appendRow([orderNo, new Date(), name, "'" + phone, String(data.group || '').trim(),
-      lines.join('\n'), total, useStock ? 'รอชำระเงิน' : 'สำรวจ', slipUrl, String(data.note || '').trim(), JSON.stringify(clean), useStock]);
+      lines.join('\n'), total, useStock ? 'รอชำระเงิน' : 'สำรวจ', slipUrl, String(data.note || '').trim(), JSON.stringify(clean), useStock, '']);
     os.getRange(os.getLastRow(), 4).setNumberFormat('@').setValue(phone);
     return { orderNo: orderNo, total: total, lines: lines, survey: !useStock };
   } finally {
@@ -225,7 +228,7 @@ function trackOrders(phone) {
   for (var i = v.length - 1; i >= 1; i--) {
     if (String(v[i][3]).replace(/\D/g, '') === phone) {
       out.push({ orderNo: v[i][0], time: Utilities.formatDate(new Date(v[i][1]), 'Asia/Bangkok', 'd/M/yyyy HH:mm'),
-        items: v[i][5], total: v[i][6], status: v[i][7], hasSlip: !!v[i][8] });
+        items: v[i][5], total: v[i][6], status: v[i][7], hasSlip: !!v[i][8], ringSize: String(v[i][12] || '') });
     }
   }
   return { orders: out, payInfo: prop_('PAY_INFO', '') };
@@ -257,7 +260,7 @@ function adminGetData(pass) {
     if (!v[i][0]) continue;
     orders.push({ orderNo: v[i][0], time: Utilities.formatDate(new Date(v[i][1]), 'Asia/Bangkok', 'd/M/yy HH:mm'),
       name: v[i][2], phone: v[i][3], group: v[i][4], items: v[i][5], total: v[i][6],
-      status: v[i][7], slip: v[i][8], note: v[i][9], json: v[i][10] });
+      status: v[i][7], slip: v[i][8], note: v[i][9], json: v[i][10], ringSize: String(v[i][12] || '') });
   }
   return { orders: orders, products: readProducts_(), mode: prop_('MODE', 'survey') };
 }
@@ -320,4 +323,18 @@ function adminSetMode(pass, mode) {
     PropertiesService.getScriptProperties().setProperty('MODE', mode);
     return { converted: converted };
   } finally { lock.releaseLock(); }
+}
+
+/* บันทึกขนาดแหวนหลังวัดนิ้วที่แผนก (พิมพ์เป็นข้อความ เช่น "56" หรือ "56, 58" ถ้าสั่งหลายวง) */
+function adminSetRingSize(pass, orderNo, size) {
+  checkAdmin_(pass);
+  var os = sheet_(SHEET_ORDERS), v = os.getDataRange().getValues();
+  for (var i = 1; i < v.length; i++) {
+    if (v[i][0] === orderNo) {
+      if (!os.getRange(1, 13).getValue()) os.getRange(1, 13).setValue('ขนาดแหวน');
+      os.getRange(i + 1, 13).setNumberFormat('@').setValue(String(size || '').trim());
+      return true;
+    }
+  }
+  throw new Error('ไม่พบออเดอร์');
 }
