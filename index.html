@@ -251,9 +251,10 @@ function renderProducts(){
       }else opt='<label>'+esc(p.optionLabel)+'</label><select id="o'+i+'">'+
         p.options.map(function(o){return '<option>'+esc(o)+'</option>'}).join('')+'</select>';
     }
+    var guide=p.options.some(function(o){return o.indexOf('แผนก')>=0})?'<button class="btn sec" style="width:100%;margin-top:8px" onclick="lb(\'img/ring-size-guide.jpg\')">วิธีวัดไซซ์แหวนด้วยตัวเอง</button>':'';
     var low=shop.mode==='order'&&p.stock!=null&&!p.soldOut&&p.stock<=10?'<span class="tag bad">เหลือ '+p.stock+'</span>':'';
     return '<div class="card p">'+img+'<div class="pb"><div class="row" style="justify-content:space-between;align-items:flex-start"><b class="pn">'+esc(p.name)+'</b>'+low+'</div>'+
-      '<div class="mut">'+esc(p.desc)+'</div><div class="price">'+priceTxt(p)+'</div>'+opt+
+      '<div class="mut">'+esc(p.desc)+'</div><div class="price">'+priceTxt(p)+'</div>'+opt+guide+
       (p.soldOut&&shop.mode==='order'?'<div class="tag bad" style="margin-top:12px">สินค้าหมด</div>':
       '<div class="row" style="margin-top:12px"><div class="qty"><button onclick="chg('+i+',-1)">−</button><span id="q'+i+'">1</span><button onclick="chg('+i+',1)">+</button></div>'+
       '<button class="btn" style="flex:1" onclick="addCart('+i+')">เพิ่มลงตะกร้า</button></div>')+
@@ -384,8 +385,13 @@ function renderSummary(){
   });
   html+='<div class="stat" style="margin-top:12px"><div><b>'+tot.qty+'</b>ชิ้นรวม</div><div><b>฿'+tot.amt.toLocaleString()+'</b>มูลค่ารวม</div></div>';
   var rNeed=0,rSizes={},rDone=0;
-  ords.forEach(function(o){var q=ringQty(o);rNeed+=q;
-    String(o.ringSize||'').split(/[,\s]+/).filter(String).forEach(function(s){rSizes[s]=(rSizes[s]||0)+1;rDone++})});
+  ords.forEach(function(o){
+    ringItems(o).forEach(function(i){
+      rNeed+=i.qty;
+      if(!isDept(i.opt)){rSizes[i.opt]=(rSizes[i.opt]||0)+i.qty;rDone+=i.qty}
+    });
+    String(o.ringSize||'').split(/[,\s]+/).filter(String).forEach(function(s){rSizes[s]=(rSizes[s]||0)+1;rDone++});
+  });
   if(rNeed>0||rDone>0){
     var rk=Object.keys(rSizes).sort(function(x,y){return x.localeCompare(y,'th',{numeric:true})});
     html+='<div style="margin-top:12px"><b>ขนาดแหวน</b> <span class="tag">'+rNeed+' วง · วัดแล้ว '+Math.min(rDone,rNeed)+' · ยังไม่วัด '+Math.max(rNeed-rDone,0)+'</span>'+
@@ -419,14 +425,16 @@ function renderOrders(){
   $('ad-orders').innerHTML=l.map(function(o){
     return '<div class="card"><div class="row" style="justify-content:space-between"><b>'+esc(o.orderNo)+'</b><span class="mut">'+esc(o.time)+'</span></div>'+
       '<div>'+esc(o.name)+' · '+esc(o.phone)+(o.group?' · '+esc(o.group):'')+'</div><pre>'+esc(o.items)+'</pre>'+
-      (ringQty(o)>0?'<div class="row" style="margin:6px 0"><span>ขนาดแหวน ('+ringQty(o)+' วง)</span><input id="rs'+esc(o.orderNo)+'" value="'+esc(o.ringSize||'')+'" placeholder="เช่น 56 หรือ 56, 58" style="flex:1;min-width:0"><button class="btn sec" onclick="saveRing(\''+o.orderNo+'\')">บันทึก</button></div>':'')+
+      (ringDeptQty(o)>0?'<div class="row" style="margin:6px 0"><span>ขนาดที่วัดจริง ('+ringDeptQty(o)+' วง)</span><input id="rs'+esc(o.orderNo)+'" value="'+esc(o.ringSize||'')+'" placeholder="เช่น 56 หรือ 56, 58" style="flex:1;min-width:0"><button class="btn sec" onclick="saveRing(\''+o.orderNo+'\')">บันทึก</button></div>':'')+
       (o.note?'<div class="mut">หมายเหตุ: '+esc(o.note)+'</div>':'')+
       '<div class="row" style="justify-content:space-between;flex-wrap:wrap;margin-top:6px"><span class="price">฿'+Number(o.total).toLocaleString()+'</span>'+
       (o.slip?'<a href="'+esc(o.slip)+'" target="_blank">ดูสลิป</a>':'<span class="mut">ยังไม่มีสลิป</span>')+
       '<select style="width:auto" onchange="setStatus(\''+o.orderNo+'\',this.value)">'+STATUSES.map(function(s){return '<option'+(s===o.status?' selected':'')+'>'+s+'</option>'}).join('')+'</select></div></div>';
   }).join('')||'<div class="card mut">ไม่มีออเดอร์</div>';
 }
-function ringQty(o){try{return JSON.parse(o.json).filter(function(i){return i.id==='ring'}).reduce(function(a,i){return a+i.qty},0)}catch(e){return 0}}
+function ringItems(o){try{return JSON.parse(o.json).filter(function(i){return i.id==='ring'})}catch(e){return []}}
+function isDept(opt){return !opt||String(opt).indexOf('แผนก')>=0}
+function ringDeptQty(o){return ringItems(o).filter(function(i){return isDept(i.opt)}).reduce(function(a,i){return a+i.qty},0)}
 function saveRing(no){run('adminSetRingSize',[ADMIN,no,$('rs'+no).value],function(){toast('บันทึกขนาดแหวนแล้ว');adminLoad()})}
 function setStatus(no,s){run('adminSetStatus',[ADMIN,no,s],function(){toast('อัปเดตแล้ว');adminLoad()})}
 function saveProd(row){

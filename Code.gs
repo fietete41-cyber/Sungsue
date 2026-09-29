@@ -73,8 +73,17 @@ function setup() {
 /* ---------- สินค้าเริ่มต้น ----------
  * ราคา 0 = "ราคาแจ้งภายหลัง" (แก้ราคาในชีต Products หรือหน้าแอดมิน)
  * ตัวเลือกแบบ "สี / ไซซ์" ใช้ " / " คั่น หน้าเว็บจะแยกเป็น 2 ช่องให้อัตโนมัติ */
+var SHIRT_SIZES = ['S', 'M', 'L', 'XL', '2XL', '3XL', '4XL', '5XL', '6XL'];
+var RING_MEASURE = 'ขอวัดที่แผนกวิชา';
+function ringOptions_() {
+  var o = [RING_MEASURE];
+  for (var n = 42; n <= 66; n++) o.push(String(n));
+  return o.join(',');
+}
+var RING_DESC = 'เงินแท้ / สแตนเลส 316L (ตามงบประมาณ) ลงยาสีฟ้า หน้าแหวน 16-18 มม. — เลือกเบอร์นิ้ว 42-66 หรือเลือก "ขอวัดที่แผนกวิชา" แล้วไปวัดที่แผนกภายหลัง (กดปุ่มด้านล่างเพื่อดูวิธีวัดไซซ์ด้วยตัวเอง)';
+
 function productRows_() {
-  var colors = ['ดำ', 'ขาว'], sizes = ['S', 'M', 'L', 'XL', '2XL', '3XL'], combo = [];
+  var colors = ['ดำ', 'ขาว'], sizes = SHIRT_SIZES, combo = [];
   colors.forEach(function (c) { sizes.forEach(function (s) { combo.push(c + ' / ' + s); }); });
   var cs = combo.join(',');
   return [
@@ -84,9 +93,24 @@ function productRows_() {
       'เสื้อยืดสกรีน มีกระเป๋า คอกลมใส่สบาย ลายกราฟิกด้านข้าง', 'img/poster-tee.jpg'],
     ['mug', 'แก้วเก็บความเย็น', 0, 'ขาว,ดำ', 'สี', '', true, 'img/mug.jpg',
       'สแตนเลส 304 เก็บความเย็นได้สูงสุด 24 ชม. เก็บความร้อนได้สูงสุด 12 ชม. ฝาปิดกันหก BPA Free พร้อมกล่องของขวัญ', 'img/poster-mug.jpg'],
-    ['ring', 'แหวนช่างไฟฟ้ากำลัง 35 ปี', 0, '', '', '', true, 'img/ring.jpg',
-      'เงินแท้ / สแตนเลส 316L (ตามงบประมาณ) ลงยาสีฟ้า หน้าแหวน 16-18 มม. — ติดต่อวัดขนาดนิ้วที่แผนก', 'img/poster-ring.jpg']
+    ['ring', 'แหวนช่างไฟฟ้ากำลัง 35 ปี', 0, ringOptions_(), 'ขนาดแหวน', '', true, 'img/ring.jpg',
+      RING_DESC, 'img/poster-ring.jpg']
   ];
+}
+
+/* อัปเดตเฉพาะตัวเลือกไซซ์ (เสื้อถึง 6XL / แหวน 42-66 + ขอวัดที่แผนก) โดยไม่แตะราคา สต็อก หรือค่าอื่น */
+function updateSizes() {
+  var ps = sheet_(SHEET_PRODUCTS), v = ps.getDataRange().getValues(), rows = productRows_(), by = {};
+  rows.forEach(function (r) { by[r[0]] = r; });
+  var done = [];
+  for (var i = 1; i < v.length; i++) {
+    var r = by[String(v[i][0])];
+    if (!r || (r[0] !== 'polo' && r[0] !== 'tee' && r[0] !== 'ring')) continue;
+    ps.getRange(i + 1, 4, 1, 2).setValues([[r[3], r[4]]]);
+    if (r[0] === 'ring') ps.getRange(i + 1, 9).setValue(r[8]);
+    done.push(r[0]);
+  }
+  return 'อัปเดตแล้ว: ' + done.join(', ');
 }
 
 /* รันเมื่อต้องการรีเซ็ตเฉพาะชีต Products เป็นค่าเริ่มต้นใหม่ (ไม่แตะออเดอร์) */
