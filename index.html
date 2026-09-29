@@ -328,16 +328,39 @@ function submit(){
 }
 function track(){
   run('trackOrders',[$('tk-phone').value],function(res){var l=res.orders;
-    $('tk-list').innerHTML=l.length?l.map(function(o){
+    $('tk-list').innerHTML=l.length?l.map(function(o,k){
       var cls=o.status==='ยกเลิก'?'bad':(o.status==='ชำระแล้ว'||o.status==='พร้อมรับ'||o.status==='รับแล้ว'?'ok':'');
       return '<div class="card"><div class="row" style="justify-content:space-between"><b>'+esc(o.orderNo)+'</b><span class="tag '+cls+'">'+esc(o.status)+'</span></div>'+
-        '<div class="mut">'+esc(o.time)+'</div><pre>'+esc(o.items)+'</pre>'+(o.ringSize?'<div class="mut">ขนาดแหวน: '+esc(o.ringSize)+'</div>':'')+'<div class="price">'+(Number(o.total)>0?'฿'+Number(o.total).toLocaleString():'ราคาแจ้งภายหลัง')+'</div>'+
+        '<div class="mut">'+esc(o.time)+'</div><pre>'+esc(o.items)+'</pre>'+(o.ringSize?'<div class="mut">ขนาดแหวน: '+esc(o.ringSize)+'</div>':'')+'<div class="price">'+payTxt(o)+'</div>'+dlvBlock(o,k,res.shipFee)+
         (o.status==='สำรวจ'?'<div class="mut">อยู่ระหว่างสำรวจ ยังไม่ต้องชำระเงิน</div><button class="btn sec" onclick="cancelMine(\''+o.orderNo+'\')">ยกเลิกรายการนี้</button>':'')+
         (o.status==='รอชำระเงิน'&&!o.hasSlip?'<pre class="mut"><b>โอนเงินที่:</b>\n'+esc(res.payInfo)+'</pre>':'')+
         (o.hasSlip?'<div class="mut">✔ แนบสลิปแล้ว</div>':
          (o.status==='รอชำระเงิน'?'<label>แนบสลิป</label><input type="file" accept="image/*" onchange="sendSlip(this,\''+o.orderNo+'\')">':''))+'</div>';
     }).join(''):'<div class="card mut">ไม่พบออเดอร์</div>';
   });
+}
+function payTxt(o){
+  var t=Number(o.total),f=Number(o.fee)||0;
+  if(!(t>0))return 'ราคาแจ้งภายหลัง'+(f?' + ค่าจัดส่ง ฿'+f:'');
+  return '฿'+(t+f).toLocaleString()+(f?' <span class="mut">(สินค้า ฿'+t.toLocaleString()+' + ค่าจัดส่ง ฿'+f+')</span>':'');
+}
+function dlvBlock(o,k,fee){
+  var ship=o.delivery==='จัดส่ง';
+  if(['รอชำระเงิน','ชำระแล้ว'].indexOf(o.status)<0)
+    return o.delivery?'<div class="mut">การรับสินค้า: '+esc(o.delivery)+(ship?' · '+esc(o.addr)+' · โทร '+esc(o.dphone):'')+'</div>':'';
+  return '<div style="margin-top:10px;padding:12px;border:1px solid var(--bd);border-radius:14px"><b>การรับสินค้า</b>'+
+    '<select id="dm'+k+'" onchange="dmChg('+k+')" style="margin-top:6px"><option value="รับด้วยตนเอง"'+(ship?'':' selected')+'>รับด้วยตนเอง (ที่แผนก)</option>'+
+    '<option value="จัดส่ง"'+(ship?' selected':'')+'>จัดส่ง (ค่าบริการ ฿'+fee+')</option></select>'+
+    '<div id="dx'+k+'" class="'+(ship?'':'hide')+'"><label>ที่อยู่จัดส่ง *</label><textarea id="da'+k+'" rows="3">'+esc(o.addr)+'</textarea>'+
+    '<label>เบอร์โทรสำหรับจัดส่ง *</label><input id="dp'+k+'" inputmode="tel" value="'+esc(o.dphone||$('tk-phone').value)+'">'+
+    '<div class="mut" style="margin-top:6px">ยอดที่ต้องโอนรวมค่าจัดส่ง ฿'+fee+' แล้ว</div></div>'+
+    '<button class="btn sec" style="width:100%;margin-top:10px" onclick="saveDlv('+k+',\''+o.orderNo+'\')">บันทึกการรับสินค้า</button>'+
+    '<div class="mut" style="margin-top:6px">'+(o.delivery?'บันทึกแล้ว: '+esc(o.delivery):'ยังไม่ได้เลือก (ถ้าไม่เลือก ถือว่ารับด้วยตนเอง)')+'</div></div>';
+}
+function dmChg(k){$('dx'+k).classList.toggle('hide',$('dm'+k).value!=='จัดส่ง')}
+function saveDlv(k,no){
+  run('setDelivery',[no,$('tk-phone').value,{method:$('dm'+k).value,addr:$('da'+k)?$('da'+k).value:'',phone:$('dp'+k)?$('dp'+k).value:''}],
+    function(r){toast(r.method==='จัดส่ง'?'บันทึกแล้ว — โอนรวมค่าจัดส่ง ฿'+r.fee:'บันทึกแล้ว — รับด้วยตนเอง');track()});
 }
 function cancelMine(no){if(confirm('ยืนยันยกเลิกรายการนี้?'))run('cancelMyOrder',[no,$('tk-phone').value],function(){toast('ยกเลิกแล้ว');track()})}
 function sendSlip(inp,no){
@@ -408,7 +431,8 @@ function renderAdmin(){
   var live=adm.orders.filter(function(o){return o.status!=='ยกเลิก'});
   var sum=live.reduce(function(a,o){return a+Number(o.total)},0);
   var paid=live.filter(function(o){return PAID.indexOf(o.status)>=0}).reduce(function(a,o){return a+Number(o.total)},0);
-  $('ad-stat').innerHTML='<div><b>'+live.length+'</b>ออเดอร์</div><div><b>฿'+sum.toLocaleString()+'</b>ยอดรวม</div><div><b>฿'+paid.toLocaleString()+'</b>ชำระแล้ว</div>';
+  $('ad-stat').innerHTML='<div><b>'+live.length+'</b>ออเดอร์</div><div><b>฿'+sum.toLocaleString()+'</b>ยอดรวม</div><div><b>฿'+paid.toLocaleString()+'</b>ชำระแล้ว</div>'+
+    '<div><b>'+live.filter(function(o){return o.delivery==='จัดส่ง'}).length+'</b>ออเดอร์จัดส่ง</div><div><b>฿'+live.reduce(function(a,o){return a+(Number(o.fee)||0)},0).toLocaleString()+'</b>ค่าจัดส่งรวม</div>';
   renderSummary();
   $('ad-mode').value=adm.mode;
   $('ad-prod').innerHTML='<tr><th>สินค้า</th><th>ราคา</th><th>สต็อก</th><th>เปิดขาย</th><th></th></tr>'+adm.products.map(function(p){
@@ -426,6 +450,7 @@ function renderOrders(){
     return '<div class="card"><div class="row" style="justify-content:space-between"><b>'+esc(o.orderNo)+'</b><span class="mut">'+esc(o.time)+'</span></div>'+
       '<div>'+esc(o.name)+' · '+esc(o.phone)+(o.group?' · '+esc(o.group):'')+'</div><pre>'+esc(o.items)+'</pre>'+
       (ringDeptQty(o)>0?'<div class="row" style="margin:6px 0"><span>ขนาดที่วัดจริง ('+ringDeptQty(o)+' วง)</span><input id="rs'+esc(o.orderNo)+'" value="'+esc(o.ringSize||'')+'" placeholder="เช่น 56 หรือ 56, 58" style="flex:1;min-width:0"><button class="btn sec" onclick="saveRing(\''+o.orderNo+'\')">บันทึก</button></div>':'')+
+      (o.delivery?'<div class="mut">'+(o.delivery==='จัดส่ง'?'จัดส่ง +฿'+o.fee+' · '+esc(o.addr)+' · โทร '+esc(o.dphone):'รับด้วยตนเอง')+'</div>':'')+
       (o.note?'<div class="mut">หมายเหตุ: '+esc(o.note)+'</div>':'')+
       '<div class="row" style="justify-content:space-between;flex-wrap:wrap;margin-top:6px"><span class="price">฿'+Number(o.total).toLocaleString()+'</span>'+
       (o.slip?'<a href="'+esc(o.slip)+'" target="_blank">ดูสลิป</a>':'<span class="mut">ยังไม่มีสลิป</span>')+
@@ -446,8 +471,8 @@ function setMode(){
   run('adminSetMode',[ADMIN,m],function(r){toast(r.converted?'เปิดชำระเงินแล้ว '+r.converted+' ออเดอร์':'เปลี่ยนโหมดแล้ว');adminLoad();load()});
 }
 function exportCsv(){
-  var rows=[['เลขที่','เวลา','ชื่อ','เบอร์','รุ่น','รายการ','ยอด','สถานะ','หมายเหตุ','ขนาดแหวน']].concat(adm.orders.map(function(o){
-    return [o.orderNo,o.time,o.name,o.phone,o.group,o.items.replace(/\n/g,'; '),o.total,o.status,o.note,o.ringSize||'']}));
+  var rows=[['เลขที่','เวลา','ชื่อ','เบอร์','รุ่น','รายการ','ยอด','สถานะ','หมายเหตุ','ขนาดแหวน','การรับสินค้า','ค่าจัดส่ง','ที่อยู่จัดส่ง','เบอร์จัดส่ง']].concat(adm.orders.map(function(o){
+    return [o.orderNo,o.time,o.name,o.phone,o.group,o.items.replace(/\n/g,'; '),o.total,o.status,o.note,o.ringSize||'',o.delivery||'',o.fee||0,(o.addr||'').replace(/\n/g,' '),o.dphone||'']}));
   var csv='﻿'+rows.map(function(r){return r.map(function(c){return '"'+String(c==null?'':c).replace(/"/g,'""')+'"'}).join(',')}).join('\n');
   var a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download='orders.csv';a.click();
 }

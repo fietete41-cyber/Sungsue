@@ -11,7 +11,7 @@ var STATUSES = ['สำรวจ', 'รอชำระเงิน', 'ชำร�
 
 /* ---------- Web App ---------- */
 var API = ['getShop', 'submitOrder', 'attachSlip', 'trackOrders', 'cancelMyOrder',
-  'adminLogin', 'adminGetData', 'adminSetStatus', 'adminSaveProduct', 'adminSetMode', 'adminSetRingSize'];
+  'adminLogin', 'adminGetData', 'adminSetStatus', 'adminSaveProduct', 'adminSetMode', 'adminSetRingSize', 'setDelivery'];
 
 function doGet() {
   return ContentService.createTextOutput('Souvenir API OK');
@@ -61,6 +61,8 @@ function setup() {
     newPass = Math.random().toString(36).slice(2, 10);
     props.setProperty('ADMIN_PASS', newPass);
   }
+  if (!props.getProperty('SHIP_FEE')) props.setProperty('SHIP_FEE', '50');
+  ensureOrderHeaders_(o);
   if (!props.getProperty('PAY_INFO')) props.setProperty('PAY_INFO', 'ธนาคาร xxx เลขที่ xxx-x-xxxxx-x ชื่อบัญชี xxxxxxxx');
   if (!props.getProperty('SHOP_TITLE')) props.setProperty('SHOP_TITLE', 'สั่งจองของที่ระลึก');
   // MODE: survey = สำรวจความต้องการ (ยังไม่ชำระเงิน) | pay = เปิดชำระเงิน | order = จองพร้อมชำระเงินทันที | closed = ปิด
@@ -125,6 +127,15 @@ function resetProducts() {
 }
 
 /* ---------- Helpers ---------- */
+// คอลัมน์ N-Q ในชีต Orders: การรับสินค้า | ค่าจัดส่ง | ที่อยู่จัดส่ง | เบอร์ติดต่อจัดส่ง
+var DELIVERY_HEADERS = ['การรับสินค้า', 'ค่าจัดส่ง', 'ที่อยู่จัดส่ง', 'เบอร์ติดต่อจัดส่ง'];
+function ensureOrderHeaders_(os) {
+  DELIVERY_HEADERS.forEach(function (t, k) {
+    var cell = os.getRange(1, 14 + k);
+    if (!cell.getValue()) cell.setValue(t).setFontWeight('bold').setBackground('#e8eefc');
+  });
+  os.getRange('P2:Q').setNumberFormat('@');
+}
 function prop_(k, d) { return PropertiesService.getScriptProperties().getProperty(k) || d; }
 function sheet_(n) {
   var s = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(n);
@@ -252,10 +263,11 @@ function trackOrders(phone) {
   for (var i = v.length - 1; i >= 1; i--) {
     if (String(v[i][3]).replace(/\D/g, '') === phone) {
       out.push({ orderNo: v[i][0], time: Utilities.formatDate(new Date(v[i][1]), 'Asia/Bangkok', 'd/M/yyyy HH:mm'),
-        items: v[i][5], total: v[i][6], status: v[i][7], hasSlip: !!v[i][8], ringSize: String(v[i][12] || '') });
+        items: v[i][5], total: v[i][6], status: v[i][7], hasSlip: !!v[i][8], ringSize: String(v[i][12] || ''),
+        delivery: String(v[i][13] || ''), fee: Number(v[i][14]) || 0, addr: String(v[i][15] || ''), dphone: String(v[i][16] || '') });
     }
   }
-  return { orders: out, payInfo: prop_('PAY_INFO', '') };
+  return { orders: out, payInfo: prop_('PAY_INFO', ''), shipFee: Number(prop_('SHIP_FEE', '50')) };
 }
 
 function cancelMyOrder(orderNo, phone) {
@@ -284,7 +296,8 @@ function adminGetData(pass) {
     if (!v[i][0]) continue;
     orders.push({ orderNo: v[i][0], time: Utilities.formatDate(new Date(v[i][1]), 'Asia/Bangkok', 'd/M/yy HH:mm'),
       name: v[i][2], phone: v[i][3], group: v[i][4], items: v[i][5], total: v[i][6],
-      status: v[i][7], slip: v[i][8], note: v[i][9], json: v[i][10], ringSize: String(v[i][12] || '') });
+      status: v[i][7], slip: v[i][8], note: v[i][9], json: v[i][10], ringSize: String(v[i][12] || ''),
+      delivery: String(v[i][13] || ''), fee: Number(v[i][14]) || 0, addr: String(v[i][15] || ''), dphone: String(v[i][16] || '') });
   }
   return { orders: orders, products: readProducts_(), mode: prop_('MODE', 'survey') };
 }
@@ -361,4 +374,29 @@ function adminSetRingSize(pass, orderNo, size) {
     }
   }
   throw new Error('ไม่พบออเดอร์');
+}
+
+/* ลูกค้าเลือกวิธีรับสินค้า: 'รับด้วยตนเอง' หรือ 'จัดส่ง' (มีค่าบริการตาม SHIP_FEE เริ่มต้น 50 บาท) */
+function setDelivery(orderNo, phone, d) {
+  phone = String(phone || '').replace(/\D/g, '');
+  var method = d && d.method === 'จัดส่ง' ? 'จัดส่ง' : 'รับด้วยตนเอง';
+  var addr = String((d && d.addr) || '').trim(), dphone = String((d && d.phone) || '').replace(/\D/g, '');
+  if (method === 'จัดส่ง') {
+    if (addr.length < 10) throw new Error('กรุณากรอกที่อยู่จัดส่งให้ครบถ้วน');
+    if (dphone.length < 9) throw new Error('กรุณากรอกเบอร์โทรสำหรับจัดส่งให้ถูกต้อง');
+  }
+  var lock = LockService.getScriptLock(); lock.waitLock(20000);
+  try {
+    var os = sheet_(SHEET_ORDERS), v = os.getDataRange().getValues();
+    ensureOrderHeaders_(os);
+    for (var i = 1; i < v.length; i++) {
+      if (v[i][0] === orderNo && String(v[i][3]).replace(/\D/g, '') === phone) {
+        if (v[i][7] !== 'รอชำระเงิน' && v[i][7] !== 'ชำระแล้ว') throw new Error('เปลี่ยนวิธีรับสินค้าได้เฉพาะออเดอร์ที่ยังไม่เริ่มผลิต กรุณาติดต่อแอดมิน');
+        var fee = method === 'จัดส่ง' ? Number(prop_('SHIP_FEE', '50')) : 0;
+        os.getRange(i + 1, 14, 1, 4).setValues([[method, fee, method === 'จัดส่ง' ? addr : '', method === 'จัดส่ง' ? dphone : '']]);
+        return { method: method, fee: fee };
+      }
+    }
+    throw new Error('ไม่พบออเดอร์');
+  } finally { lock.releaseLock(); }
 }
