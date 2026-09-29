@@ -92,7 +92,7 @@ function productRows_() {
     ['tee', 'เสื้อยืด (สกรีน)', 0, cs, 'สี / ไซซ์', '', true, 'img/tee.jpg',
       'เสื้อยืดสกรีน มีกระเป๋า คอกลมใส่สบาย ลายกราฟิกด้านข้าง', 'img/poster-tee.jpg'],
     ['mug', 'แก้วเก็บความเย็น', 0, 'ขาว,ดำ', 'สี', '', true, 'img/mug.jpg',
-      'สแตนเลส 304 เก็บความเย็นได้สูงสุด 24 ชม. เก็บความร้อนได้สูงสุด 12 ชม. ฝาปิดกันหก BPA Free พร้อมกล่องของขวัญ', 'img/poster-mug.jpg'],
+      'เก็บความเย็นได้ 12 ชั่วโมง เก็บความร้อนได้ 8 ชั่วโมง วัสดุสแตนเลส SUS304 ฝาพลาสติก PC', 'img/poster-mug.jpg'],
     ['ring', 'แหวนช่างไฟฟ้ากำลัง 35 ปี', 0, ringOptions_(), 'ขนาดแหวน', '', true, 'img/ring.jpg',
       RING_DESC, 'img/poster-ring.jpg']
   ];
@@ -105,9 +105,9 @@ function updateSizes() {
   var done = [];
   for (var i = 1; i < v.length; i++) {
     var r = by[String(v[i][0])];
-    if (!r || (r[0] !== 'polo' && r[0] !== 'tee' && r[0] !== 'ring')) continue;
-    ps.getRange(i + 1, 4, 1, 2).setValues([[r[3], r[4]]]);
-    if (r[0] === 'ring') ps.getRange(i + 1, 9).setValue(r[8]);
+    if (!r || (r[0] !== 'polo' && r[0] !== 'tee' && r[0] !== 'ring' && r[0] !== 'mug')) continue;
+    if (r[0] !== 'mug') ps.getRange(i + 1, 4, 1, 2).setValues([[r[3], r[4]]]);
+    if (r[0] === 'ring' || r[0] === 'mug') ps.getRange(i + 1, 9).setValue(r[8]);
     done.push(r[0]);
   }
   return 'อัปเดตแล้ว: ' + done.join(', ');
